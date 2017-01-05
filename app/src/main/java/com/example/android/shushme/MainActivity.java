@@ -1,6 +1,7 @@
 package com.example.android.shushme;
 
 import android.content.pm.PackageManager;
+import android.os.AsyncTask;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v4.app.ActivityCompat;
@@ -16,9 +17,9 @@ import com.google.android.gms.location.places.PlaceLikelihood;
 import com.google.android.gms.location.places.PlaceLikelihoodBuffer;
 import com.google.android.gms.location.places.Places;
 
+
 public class MainActivity extends AppCompatActivity
         implements
-        GoogleApiClient.ConnectionCallbacks,
         GoogleApiClient.OnConnectionFailedListener {
 
     private static final int PERMISSIONS_REQUEST_FINE_LOCATION = 111;
@@ -30,12 +31,26 @@ public class MainActivity extends AppCompatActivity
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        mGoogleApiClient = new GoogleApiClient.Builder(this)
-                .addConnectionCallbacks(this)
-                .addOnConnectionFailedListener(this)
+        mGoogleApiClient = new GoogleApiClient
+                .Builder(this)
                 .addApi(Places.PLACE_DETECTION_API)
+                .enableAutoManage(this, this)
                 .build();
-        initLocationCallback();
+        AsyncTask t = new AsyncTask() {
+            @Override
+            protected Object doInBackground(Object[] objects) {
+                // Just try for 10 times
+                for(int i = 0; i<10; i++) {
+                    initLocationCallback();
+                    try {
+                        Thread.sleep(50000);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                }
+                return null;
+            }
+        }.execute();
 
     }
 
@@ -50,9 +65,11 @@ public class MainActivity extends AppCompatActivity
         //not working yet :(
         PendingResult<PlaceLikelihoodBuffer> result = Places.PlaceDetectionApi
                 .getCurrentPlace(mGoogleApiClient, null);
+        Log.i(TAG, "Waiting for current place ... ");
         result.setResultCallback(new ResultCallback<PlaceLikelihoodBuffer>() {
             @Override
             public void onResult(PlaceLikelihoodBuffer likelyPlaces) {
+                Log.i(TAG, String.format("Results returned %d",likelyPlaces.getCount()));
                 for (PlaceLikelihood placeLikelihood : likelyPlaces) {
                     Log.i(TAG, String.format("Place '%s' has likelihood: %g",
                             placeLikelihood.getPlace().getName(),
@@ -72,6 +89,7 @@ public class MainActivity extends AppCompatActivity
                 if (grantResults.length > 0
                         && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                     // permission was granted, yay!
+                    Log.i(TAG, "Permission granted!");
                     initLocationCallback();
 
                 } else {
@@ -82,32 +100,9 @@ public class MainActivity extends AppCompatActivity
         }
     }
 
-    @Override
-    protected void onResume() {
-        super.onResume();
-        mGoogleApiClient.connect();
-    }
-
-    @Override
-    protected void onPause() {
-        super.onPause();
-        if (mGoogleApiClient.isConnected()) {
-            mGoogleApiClient.disconnect();
-        }
-    }
-
-    @Override
-    public void onConnected(@Nullable Bundle bundle) {
-        Log.i(TAG, "Location services connected.");
-    }
-
-    @Override
-    public void onConnectionSuspended(int i) {
-        Log.i(TAG, "Location services suspended. Please reconnect.");
-    }
 
     @Override
     public void onConnectionFailed(@NonNull ConnectionResult connectionResult) {
-
+        Log.i(TAG, "Connection Failed!");
     }
 }
