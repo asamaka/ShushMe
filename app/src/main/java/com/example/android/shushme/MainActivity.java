@@ -1,16 +1,15 @@
 package com.example.android.shushme;
 
 import android.content.pm.PackageManager;
-import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
-import android.os.AsyncTask;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v4.app.ActivityCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
+import android.widget.TextView;
 
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
@@ -29,6 +28,7 @@ public class MainActivity extends AppCompatActivity
     private static final int PERMISSIONS_REQUEST_FINE_LOCATION = 111;
     private GoogleApiClient mGoogleApiClient;
     private LocationManager mLocationManager;
+    private TextView mTopPlaceTextView;
     public static final String TAG = MainActivity.class.getSimpleName();
 
     @Override
@@ -36,14 +36,17 @@ public class MainActivity extends AppCompatActivity
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+        mTopPlaceTextView = (TextView) findViewById(R.id.topPlaceTxt);
+
         mGoogleApiClient = new GoogleApiClient
                 .Builder(this)
                 .addApi(Places.PLACE_DETECTION_API)
                 .addApi(Places.GEO_DATA_API)
                 .addConnectionCallbacks(this)
                 .addOnConnectionFailedListener(this)
-                .enableAutoManage(this, this)
                 .build();
+
+        mGoogleApiClient.connect();
 
         mLocationManager = (LocationManager)
                 getSystemService(this.LOCATION_SERVICE);
@@ -71,11 +74,15 @@ public class MainActivity extends AppCompatActivity
             PendingResult<PlaceLikelihoodBuffer> result = Places.PlaceDetectionApi
                     .getCurrentPlace(mGoogleApiClient, null);
             Log.i(TAG, "Waiting for current place ... ");
+            mTopPlaceTextView.setText( getString(R.string.unknownLocation));
             result.setResultCallback(new ResultCallback<PlaceLikelihoodBuffer>() {
                 @Override
                 public void onResult(PlaceLikelihoodBuffer likelyPlaces) {
                     Log.i(TAG, String.format("Result status %s", likelyPlaces.getStatus().getStatusCode()));
+                    if(likelyPlaces.getStatus().getStatusCode()==0)
+                        mTopPlaceTextView.setText("");
                     for (PlaceLikelihood placeLikelihood : likelyPlaces) {
+                        mTopPlaceTextView.setText(mTopPlaceTextView.getText()+"\n"+placeLikelihood.getPlace().getName());
                         Log.i(TAG, String.format("Place '%s' has likelihood: %g",
                                 placeLikelihood.getPlace().getName(),
                                 placeLikelihood.getLikelihood()));
