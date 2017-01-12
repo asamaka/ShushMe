@@ -42,10 +42,12 @@ public class PlaceListAdapter extends RecyclerView.Adapter<PlaceListAdapter.Plac
 
         // Update the view holder with the information needed to display
         String name = mCursor.getString(mCursor.getColumnIndex(PlaceContract.PlaceEntry.COLUMN_PLACE_NAME));
+        String address = mCursor.getString(mCursor.getColumnIndex(PlaceContract.PlaceEntry.COLUMN_PLACE_ADDRESS));
         long id = mCursor.getLong(mCursor.getColumnIndex(PlaceContract.PlaceEntry._ID));
 
-        // Display the place name
+        // Display the place name and address
         holder.nameTextView.setText(name);
+        holder.addressTextView.setText(address);
         // Add the the place id s a tag
         holder.itemView.setTag(id);
     }
@@ -78,26 +80,15 @@ public class PlaceListAdapter extends RecyclerView.Adapter<PlaceListAdapter.Plac
     }
 
 
-
-
-    /**
-     * Inner class to hold the views needed to display a single item in the recycler-view
-     */
     class PlaceViewHolder extends RecyclerView.ViewHolder implements View.OnClickListener {
 
-        // Will display the place name
         TextView nameTextView;
+        TextView addressTextView;
 
-        /**
-         * Constructor for our ViewHolder. Within this constructor, we get a reference to our
-         * TextViews
-         *
-         * @param itemView The View that you inflated in
-         *                 {@link PlaceListAdapter#onCreateViewHolder(ViewGroup, int)}
-         */
         public PlaceViewHolder(View itemView) {
             super(itemView);
             nameTextView = (TextView) itemView.findViewById(R.id.name_text_view);
+            addressTextView = (TextView) itemView.findViewById(R.id.address_text_view);
         }
 
         @Override

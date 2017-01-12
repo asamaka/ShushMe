@@ -1,10 +1,11 @@
 <resources>
     <string name="app_name">ShushMe</string>
     <string name="unknownLocation">Unknown!</string>
-    <string name="enable">Enable</string>
-    <string name="add_new_place">Add new place</string>
+    <string name="enable">Enable Silent Mode</string>
+    <string name="add_new_location">Add new location</string>
     <string name="notification_text">You have triggered a geofence action!</string>
     <string name="geofence_entered">Entered Geofence</string>
     <string name="geofence_exited">Exited Geofence</string>
     <string name="unknown_geofence_transition">Unknown Transition</string>
+    <string name="location_list">Locations</string>
 </resources>
