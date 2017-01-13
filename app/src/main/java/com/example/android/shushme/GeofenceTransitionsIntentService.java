@@ -8,6 +8,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
+import android.media.AudioManager;
 import android.support.v7.app.NotificationCompat;
 import android.text.TextUtils;
 import android.util.Log;
@@ -43,34 +44,42 @@ public class GeofenceTransitionsIntentService extends IntentService {
         int geofenceTransition = geofencingEvent.getGeofenceTransition();
 
         // Test that the reported transition was of interest.
-        if (geofenceTransition == Geofence.GEOFENCE_TRANSITION_ENTER ||
-                geofenceTransition == Geofence.GEOFENCE_TRANSITION_EXIT) {
-
-            // Get the geofences that were triggered. A single event can trigger
-            // multiple geofences.
-            List triggeringGeofences = geofencingEvent.getTriggeringGeofences();
-
-            // Get the transition details as a String.
-            String geofenceTransitionDetails = getGeofenceTransitionDetails(
-                    this,
-                    geofenceTransition,
-                    triggeringGeofences
-            );
-
-            // Send notification and log the transition details.
-            sendNotification(geofenceTransitionDetails);
-            Log.i(TAG, geofenceTransitionDetails);
-        } else {
+        if (geofenceTransition == Geofence.GEOFENCE_TRANSITION_ENTER ) {
+            //Set the phone to silent
+            AudioManager audioManager = (AudioManager) getSystemService(AUDIO_SERVICE);
+            audioManager.setRingerMode(AudioManager.RINGER_MODE_SILENT);
+        }else if (geofenceTransition == Geofence.GEOFENCE_TRANSITION_EXIT) {
+            //Set the phone to normal
+            AudioManager audioManager = (AudioManager) getSystemService(AUDIO_SERVICE);
+            audioManager.setRingerMode(AudioManager.RINGER_MODE_NORMAL);
+        }
+        else {
             // Log the error.
             Log.e(TAG, getString(R.string.unknown_geofence_transition));
+            // No need to do anything else
+            return;
         }
+        // Get the geofences that were triggered. A single event can trigger
+        // multiple geofences.
+        List triggeringGeofences = geofencingEvent.getTriggeringGeofences();
+
+        // Get the transition details as a String.
+        String geofenceTransitionDetails = getGeofenceTransitionDetails(
+                this,
+                geofenceTransition,
+                triggeringGeofences
+        );
+
+        // Send notification and log the transition details.
+        sendNotification(geofenceTransition, geofenceTransitionDetails);
+        Log.i(TAG, geofenceTransitionDetails);
     }
 
     /**
      * Posts a notification in the notification bar when a transition is detected.
      * If the user clicks the notification, control goes to the MainActivity.
      */
-    private void sendNotification(String notificationDetails) {
+    private void sendNotification(int transitionType, String notificationDetails) {
         // Create an explicit content Intent that starts the main Activity.
         Intent notificationIntent = new Intent(getApplicationContext(), MainActivity.class);
 
@@ -97,8 +106,8 @@ public class GeofenceTransitionsIntentService extends IntentService {
                 .setLargeIcon(BitmapFactory.decodeResource(getResources(),
                         R.drawable.ic_gps_fixed_black_24dp))
                 .setColor(Color.GREEN)
-                .setContentTitle(notificationDetails)
-                .setContentText(getString(R.string.notification_text))
+                .setContentTitle(getTransitionString(transitionType))
+                .setContentText(notificationDetails)
                 .setContentIntent(notificationPendingIntent);
 
         // Dismiss notification once the user touches it.
@@ -125,8 +134,6 @@ public class GeofenceTransitionsIntentService extends IntentService {
             int geofenceTransition,
             List<Geofence> triggeringGeofences) {
 
-        String geofenceTransitionString = getTransitionString(geofenceTransition);
-
         // Get the Ids of each geofence that was triggered.
         ArrayList triggeringGeofencesIdsList = new ArrayList();
         for (Geofence geofence : triggeringGeofences) {
@@ -134,7 +141,7 @@ public class GeofenceTransitionsIntentService extends IntentService {
         }
         String triggeringGeofencesIdsString = TextUtils.join(", ",  triggeringGeofencesIdsList);
 
-        return geofenceTransitionString + ": " + triggeringGeofencesIdsString;
+        return triggeringGeofences.size() + " Geofence(s): " + triggeringGeofencesIdsString;
     }
 
     /**

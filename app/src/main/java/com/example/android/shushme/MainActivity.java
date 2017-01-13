@@ -188,10 +188,15 @@ public class MainActivity extends AppCompatActivity
     }
 
     public void onAddPlaceButtonClicked(View view) {
-        //TODO: check if i need to check for permission here?
+        /**
+         * This if condition is not required for the place picker to work, however we need to make sure
+         * the user knows the app (geofences) will not work properly without that permission
+         */
         if (ActivityCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION)
-                != PackageManager.PERMISSION_GRANTED)
+                != PackageManager.PERMISSION_GRANTED){
+            Toast.makeText(this, getString(R.string.need_location_permission_message), Toast.LENGTH_LONG).show();
             return;
+        }
         try {
             PlacePicker.IntentBuilder builder = new PlacePicker.IntentBuilder();
             Intent i = builder.build(this);
