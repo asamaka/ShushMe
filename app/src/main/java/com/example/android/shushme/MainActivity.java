@@ -43,7 +43,6 @@ public class MainActivity extends AppCompatActivity
         GoogleApiClient.ConnectionCallbacks,
         GoogleApiClient.OnConnectionFailedListener,
         LoaderManager.LoaderCallbacks<Cursor>,
-        PlaceListAdapter.ListItemClickListener,
         ResultCallback{
 
     // Constants
@@ -68,7 +67,7 @@ public class MainActivity extends AppCompatActivity
 
         mRecyclerView = (RecyclerView) findViewById(R.id.places_list_recycler_view);
         mRecyclerView.setLayoutManager(new LinearLayoutManager(this));
-        mAdapter = new PlaceListAdapter(this,this);
+        mAdapter = new PlaceListAdapter(this);
         mRecyclerView.setAdapter(mAdapter);
 
         new ItemTouchHelper(new ItemTouchHelper.SimpleCallback(0, ItemTouchHelper.LEFT | ItemTouchHelper.RIGHT) {
@@ -95,8 +94,8 @@ public class MainActivity extends AppCompatActivity
         // Initialize the pending intent to null
         mGeofencePendingIntent = null;
 
-        // Initialize the list of geofences
-        mGeofenceList = new ArrayList<Geofence>();
+        // Initialize the Geofences list
+        mGeofenceList = new ArrayList<>();
 
         // Initialize the loader to load the list from the database
         getSupportLoaderManager().initLoader(PLACE_LOADER_ID, null, this);
@@ -119,6 +118,7 @@ public class MainActivity extends AppCompatActivity
                 .addConnectionCallbacks(this)
                 .addOnConnectionFailedListener(this)
                 .addApi(LocationServices.API)
+                .enableAutoManage(this,this)
                 .build();
     }
 
@@ -134,8 +134,6 @@ public class MainActivity extends AppCompatActivity
     @Override
     protected void onResume() {
         super.onResume();
-        // re-queries for all tasks
-        //TODO: check if i really need this?
         getSupportLoaderManager().restartLoader(PLACE_LOADER_ID, null, this);
     }
 
@@ -162,19 +160,45 @@ public class MainActivity extends AppCompatActivity
     @Override
     public void onConnected(@Nullable Bundle bundle) {
         Log.i(TAG, "API Client Connected!");
-        // Check that our geofences list is loaded and has anything in it, also check permissions
-        if (    mGeofenceList == null || mGeofenceList.size()==0 ||
-                ActivityCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION)
-                        != PackageManager.PERMISSION_GRANTED)
-            return;
         //TODO: only need to do so if never done before - check for shared preference for last time they were registered
         //TODO: ask about the cons of re-registering them over and over? do they get replaced
-        LocationServices.GeofencingApi.addGeofences(
-                mGoogleApiClient,
-                getGeofencingRequest(),
-                getGeofencePendingIntent()
-        ).setResultCallback(this);
-        Toast.makeText(this, "Geofences Registered!", Toast.LENGTH_SHORT).show();
+        unRegisterGeofences();
+        registerGeofences();
+    }
+
+    private void registerGeofences(){
+        if (mGeofenceList == null || mGeofenceList.size()==0 || !mGoogleApiClient.isConnected()){
+            return;
+        }
+        try {
+            LocationServices.GeofencingApi.addGeofences(
+                    mGoogleApiClient,
+                    getGeofencingRequest(),
+                    getGeofencePendingIntent()
+            ).setResultCallback(this);
+            Toast.makeText(this, "Geofences Registered!", Toast.LENGTH_SHORT).show();
+        }catch (SecurityException securityException) {
+            // Catch exception generated if the app does not use ACCESS_FINE_LOCATION permission.
+            Log.e(TAG, securityException.getMessage());
+        }
+    }
+
+    private void unRegisterGeofences(){
+        if (!mGoogleApiClient.isConnected()) {
+            return;
+        }
+        try {
+            // Remove geofences.
+            LocationServices.GeofencingApi.removeGeofences(
+                    mGoogleApiClient,
+                    // This is the same pending intent that was used in addGeofences().
+                    getGeofencePendingIntent()
+            ).setResultCallback(this); // Result processed in onResult().
+            Toast.makeText(this, "Geofences Unregistered!", Toast.LENGTH_SHORT).show();
+        } catch (SecurityException securityException) {
+            // Catch exception generated if the app does not use ACCESS_FINE_LOCATION permission.
+            Log.e(TAG, securityException.getMessage());
+        }
     }
 
     @Override
@@ -212,6 +236,7 @@ public class MainActivity extends AppCompatActivity
 
 
     private void createGeofences(Cursor data){
+        mGeofenceList = new ArrayList<Geofence>();
         if(data == null || data.getCount()==0) return;
         while (data.moveToNext()) {
             // Read the place infromation from the DB cursor
@@ -273,6 +298,7 @@ public class MainActivity extends AppCompatActivity
             Uri uri = getContentResolver().insert(PlaceContract.PlaceEntry.CONTENT_URI, contentValues);
             if(uri != null) {
                 Log.i(TAG,"New place added to DB");
+                getSupportLoaderManager().restartLoader(PLACE_LOADER_ID, null, MainActivity.this);
                 //TODO: I need to register the new geofence here
             }
 
@@ -317,26 +343,16 @@ public class MainActivity extends AppCompatActivity
 
     @Override
     public void onLoadFinished(Loader<Cursor> loader, Cursor data) {
-        // Update the data that the adapter uses to create ViewHolders
+        unRegisterGeofences();
         mAdapter.swapCursor(data);
         createGeofences(data);
-        // Only when places list is fully loaded from the DB,
-        // then we can connect the client to trigger the geofence registration
-        //TODO: find a better way to handle this
-        mGoogleApiClient.connect();
+        Toast.makeText(this,String.format("List has %d geofences",mGeofenceList.size()),Toast.LENGTH_SHORT).show();
+        registerGeofences();
     }
 
     @Override
     public void onLoaderReset(Loader<Cursor> loader) {
         mAdapter.swapCursor(null);
-        // Refresh the client API to register the geofences
-        if(mGoogleApiClient.isConnected()) mGoogleApiClient.disconnect();
-        mGoogleApiClient.connect();
-    }
-
-    @Override
-    public void onListItemClick(long placeID) {
-
     }
 
     @Override

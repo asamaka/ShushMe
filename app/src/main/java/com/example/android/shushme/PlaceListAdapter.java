@@ -14,15 +14,13 @@ public class PlaceListAdapter extends RecyclerView.Adapter<PlaceListAdapter.Plac
     // Holds on to the cursor to display the list of places
     private Cursor mCursor;
     private Context mContext;
-    final private ListItemClickListener mOnClickListener;
 
     /**
      * Constructor using the context and the db cursor
      * @param context the calling context/activity
      */
-    public PlaceListAdapter(Context context, ListItemClickListener listener) {
+    public PlaceListAdapter(Context context) {
         this.mContext = context;
-        mOnClickListener = listener;
 
     }
 
@@ -80,7 +78,7 @@ public class PlaceListAdapter extends RecyclerView.Adapter<PlaceListAdapter.Plac
     }
 
 
-    class PlaceViewHolder extends RecyclerView.ViewHolder implements View.OnClickListener {
+    class PlaceViewHolder extends RecyclerView.ViewHolder {
 
         TextView nameTextView;
         TextView addressTextView;
@@ -89,12 +87,6 @@ public class PlaceListAdapter extends RecyclerView.Adapter<PlaceListAdapter.Plac
             super(itemView);
             nameTextView = (TextView) itemView.findViewById(R.id.name_text_view);
             addressTextView = (TextView) itemView.findViewById(R.id.address_text_view);
-        }
-
-        @Override
-        public void onClick(View v) {
-            long id = (long) itemView.getTag();
-            mOnClickListener.onListItemClick(id);
         }
 
     }
