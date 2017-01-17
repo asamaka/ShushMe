@@ -84,7 +84,6 @@ public class MainActivity extends AppCompatActivity
                 Uri uri = PlaceContract.PlaceEntry.CONTENT_URI;
                 uri = uri.buildUpon().appendPath(stringId).build();
                 getContentResolver().delete(uri, null, null);
-                //TODO: need to unregister the removed geofence
                 getSupportLoaderManager().restartLoader(PLACE_LOADER_ID, null, MainActivity.this);
             }
         }).attachToRecyclerView(mRecyclerView);
@@ -160,10 +159,8 @@ public class MainActivity extends AppCompatActivity
     @Override
     public void onConnected(@Nullable Bundle bundle) {
         Log.i(TAG, "API Client Connected!");
-        //TODO: only need to do so if never done before - check for shared preference for last time they were registered
-        //TODO: ask about the cons of re-registering them over and over? do they get replaced
-        unRegisterGeofences();
-        registerGeofences();
+        // Refresh the loader to force registering the geofences
+        getSupportLoaderManager().restartLoader(PLACE_LOADER_ID, null, MainActivity.this);
     }
 
     private void registerGeofences(){
@@ -299,7 +296,6 @@ public class MainActivity extends AppCompatActivity
             if(uri != null) {
                 Log.i(TAG,"New place added to DB");
                 getSupportLoaderManager().restartLoader(PLACE_LOADER_ID, null, MainActivity.this);
-                //TODO: I need to register the new geofence here
             }
 
         }
@@ -308,10 +304,10 @@ public class MainActivity extends AppCompatActivity
     @Override
     public Loader<Cursor> onCreateLoader(int id, Bundle args) {
         return new AsyncTaskLoader<Cursor>(this) {
-            //TODO: should mPlaceData be a member field? do I need to check for null in on start loading?
             Cursor mPlaceData = null;
             @Override
             protected void onStartLoading() {
+                // QUESTION: don't I also need to check for takeContentChanged? (Sunshine and ANDFUN1 don't!)
                 if (mPlaceData != null) {
                     deliverResult(mPlaceData);
                 } else {
@@ -346,12 +342,12 @@ public class MainActivity extends AppCompatActivity
         unRegisterGeofences();
         mAdapter.swapCursor(data);
         createGeofences(data);
-        Toast.makeText(this,String.format("List has %d geofences",mGeofenceList.size()),Toast.LENGTH_SHORT).show();
         registerGeofences();
     }
 
     @Override
     public void onLoaderReset(Loader<Cursor> loader) {
+        unRegisterGeofences();
         mAdapter.swapCursor(null);
     }
 

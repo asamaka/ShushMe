@@ -23,7 +23,6 @@ public class PlaceDbHelper extends SQLiteOpenHelper {
     public void onCreate(SQLiteDatabase sqLiteDatabase) {
 
         // Create a table to hold the places data
-        // TODO: set the UID as unique and update/keep old when duplicates found
         final String SQL_CREATE_PLACES_TABLE = "CREATE TABLE " + PlaceEntry.TABLE_NAME + " (" +
                 PlaceEntry._ID + " INTEGER PRIMARY KEY AUTOINCREMENT," +
                 PlaceEntry.COLUMN_PLACE_UID + " TEXT NOT NULL, " +
@@ -31,6 +30,7 @@ public class PlaceDbHelper extends SQLiteOpenHelper {
                 PlaceEntry.COLUMN_PLACE_ADDRESS + " TEXT NOT NULL, " +
                 PlaceEntry.COLUMN_PLACE_LATITUDE + " FLOAT NOT NULL, " +
                 PlaceEntry.COLUMN_PLACE_LONGITUDE + " FLOAT NOT NULL " +
+                "UNIQUE ("+PlaceEntry.COLUMN_PLACE_UID+") ON CONFLICT REPLACE" +
                 "); ";
 
         sqLiteDatabase.execSQL(SQL_CREATE_PLACES_TABLE);
