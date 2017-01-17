@@ -1,5 +1,21 @@
 package com.example.android.shushme;
 
+/*
+* Copyright (C) 2017 The Android Open Source Project
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+*  	http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*/
+
 import android.app.IntentService;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
@@ -32,11 +48,16 @@ public class GeofenceTransitionsIntentService extends IntentService {
         super.onCreate();
     }
 
+    /***
+     * This is called when 1 or more Geofences are triggered
+     *
+     * @param intent contains information about the Geofence triggered
+     */
     @Override
     protected void onHandleIntent(Intent intent) {
         GeofencingEvent geofencingEvent = GeofencingEvent.fromIntent(intent);
         if (geofencingEvent.hasError()) {
-            Log.e(TAG, String.format("Error code : %d",geofencingEvent.getErrorCode()));
+            Log.e(TAG, String.format("Error code : %d", geofencingEvent.getErrorCode()));
             return;
         }
 
@@ -44,16 +65,15 @@ public class GeofenceTransitionsIntentService extends IntentService {
         int geofenceTransition = geofencingEvent.getGeofenceTransition();
 
         // Test that the reported transition was of interest.
-        if (geofenceTransition == Geofence.GEOFENCE_TRANSITION_ENTER ) {
+        if (geofenceTransition == Geofence.GEOFENCE_TRANSITION_ENTER) {
             //Set the phone to silent
             AudioManager audioManager = (AudioManager) getSystemService(AUDIO_SERVICE);
             audioManager.setRingerMode(AudioManager.RINGER_MODE_SILENT);
-        }else if (geofenceTransition == Geofence.GEOFENCE_TRANSITION_EXIT) {
+        } else if (geofenceTransition == Geofence.GEOFENCE_TRANSITION_EXIT) {
             //Set the phone to normal
             AudioManager audioManager = (AudioManager) getSystemService(AUDIO_SERVICE);
             audioManager.setRingerMode(AudioManager.RINGER_MODE_NORMAL);
-        }
-        else {
+        } else {
             // Log the error.
             Log.e(TAG, getString(R.string.unknown_geofence_transition));
             // No need to do anything else
@@ -100,7 +120,7 @@ public class GeofenceTransitionsIntentService extends IntentService {
         NotificationCompat.Builder builder = new NotificationCompat.Builder(this);
 
         // Define the notification settings.
-        builder.setSmallIcon(R.drawable.ic_gps_fixed_black_24dp)
+        builder.setSmallIcon(R.drawable.ic_gps_fixed_white_24dp)
                 // In a real app, you may want to use a library like Volley
                 // to decode the Bitmap.
                 .setLargeIcon(BitmapFactory.decodeResource(getResources(),
@@ -124,10 +144,10 @@ public class GeofenceTransitionsIntentService extends IntentService {
     /**
      * Gets transition details and returns them as a formatted string.
      *
-     * @param context               The app context.
-     * @param geofenceTransition    The ID of the geofence transition.
-     * @param triggeringGeofences   The geofence(s) triggered.
-     * @return                      The transition details formatted as String.
+     * @param context             The app context.
+     * @param geofenceTransition  The ID of the geofence transition.
+     * @param triggeringGeofences The geofence(s) triggered.
+     * @return The transition details formatted as String.
      */
     private String getGeofenceTransitionDetails(
             Context context,
@@ -139,7 +159,7 @@ public class GeofenceTransitionsIntentService extends IntentService {
         for (Geofence geofence : triggeringGeofences) {
             triggeringGeofencesIdsList.add(geofence.getRequestId());
         }
-        String triggeringGeofencesIdsString = TextUtils.join(", ",  triggeringGeofencesIdsList);
+        String triggeringGeofencesIdsString = TextUtils.join(", ", triggeringGeofencesIdsList);
 
         return triggeringGeofences.size() + " Geofence(s): " + triggeringGeofencesIdsString;
     }
@@ -147,8 +167,8 @@ public class GeofenceTransitionsIntentService extends IntentService {
     /**
      * Maps geofence transition types to their human-readable equivalents.
      *
-     * @param transitionType    A transition type constant defined in Geofence
-     * @return                  A String indicating the type of transition
+     * @param transitionType A transition type constant defined in Geofence
+     * @return The message to be displayed in the notification
      */
     private String getTransitionString(int transitionType) {
         switch (transitionType) {

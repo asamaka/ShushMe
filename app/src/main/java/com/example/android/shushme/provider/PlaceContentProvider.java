@@ -1,5 +1,21 @@
 package com.example.android.shushme.provider;
 
+/*
+* Copyright (C) 2017 The Android Open Source Project
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+*  	http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*/
+
 import android.content.ContentProvider;
 import android.content.ContentUris;
 import android.content.ContentValues;
@@ -46,8 +62,13 @@ public class PlaceContentProvider extends ContentProvider {
         return true;
     }
 
-
-    // Handle requests to insert a single new row of data
+    /***
+     * Handles requests to insert a single new row of data
+     *
+     * @param uri
+     * @param values
+     * @return
+     */
     @Override
     public Uri insert(@NonNull Uri uri, ContentValues values) {
         final SQLiteDatabase db = mPlaceDbHelper.getWritableDatabase();
@@ -56,14 +77,14 @@ public class PlaceContentProvider extends ContentProvider {
         int match = sUriMatcher.match(uri);
         Uri returnUri; // URI to be returned
 
-        Log.d(TAG,String.format("Matched uri: %d",match));
+        Log.d(TAG, String.format("Matched uri: %d", match));
         switch (match) {
             case PLACES:
                 // Insert new values into the database
                 long id = db.insert(PlaceEntry.TABLE_NAME, null, values);
-                Log.d(TAG,"Inserted");
-                if ( id > 0 ) {
-                    Log.d(TAG,String.format("id = %d",id));
+                Log.d(TAG, "Inserted");
+                if (id > 0) {
+                    Log.d(TAG, String.format("id = %d", id));
                     returnUri = ContentUris.withAppendedId(PlaceContract.PlaceEntry.CONTENT_URI, id);
                 } else {
                     throw new android.database.SQLException("Failed to insert row into " + uri);
@@ -81,8 +102,16 @@ public class PlaceContentProvider extends ContentProvider {
         return returnUri;
     }
 
-
-    // Handle requests for data by URI
+    /***
+     * Handles requests for data by URI
+     *
+     * @param uri
+     * @param projection
+     * @param selection
+     * @param selectionArgs
+     * @param sortOrder
+     * @return
+     */
     @Override
     public Cursor query(@NonNull Uri uri, String[] projection, String selection,
                         String[] selectionArgs, String sortOrder) {
@@ -97,7 +126,7 @@ public class PlaceContentProvider extends ContentProvider {
         switch (match) {
             // Query for the places directory
             case PLACES:
-                retCursor =  db.query(PlaceEntry.TABLE_NAME,
+                retCursor = db.query(PlaceEntry.TABLE_NAME,
                         projection,
                         selection,
                         selectionArgs,
@@ -117,19 +146,21 @@ public class PlaceContentProvider extends ContentProvider {
         return retCursor;
     }
 
-
-    // Delete a single row of data
+    /***
+     * Deletes a single row of data
+     *
+     * @param uri
+     * @param selection
+     * @param selectionArgs
+     * @return
+     */
     @Override
     public int delete(@NonNull Uri uri, String selection, String[] selectionArgs) {
-
         // Get access to the database and write URI matching code to recognize a single item
         final SQLiteDatabase db = mPlaceDbHelper.getWritableDatabase();
-
         int match = sUriMatcher.match(uri);
-
         // Keep track of the number of deleted places
         int placesDeleted; // starts as 0
-
         switch (match) {
             // Handle the single item case, recognized by the ID included in the URI path
             case PLACE_WITH_ID:
@@ -141,13 +172,11 @@ public class PlaceContentProvider extends ContentProvider {
             default:
                 throw new UnsupportedOperationException("Unknown uri: " + uri);
         }
-
         // Notify the resolver of a change and return the number of items deleted
         if (placesDeleted != 0) {
             // A place (or more) was deleted, set notification
             getContext().getContentResolver().notifyChange(uri, null);
         }
-
         // Return the number of places deleted
         return placesDeleted;
     }
@@ -156,14 +185,12 @@ public class PlaceContentProvider extends ContentProvider {
     @Override
     public int update(@NonNull Uri uri, ContentValues values, String selection,
                       String[] selectionArgs) {
-
         throw new UnsupportedOperationException("Not yet implemented");
     }
 
 
     @Override
     public String getType(@NonNull Uri uri) {
-
         throw new UnsupportedOperationException("Not yet implemented");
     }
 }
