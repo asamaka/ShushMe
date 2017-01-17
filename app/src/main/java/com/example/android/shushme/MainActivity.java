@@ -66,6 +66,7 @@ public class MainActivity extends AppCompatActivity implements
     // Constants
     public static final String TAG = MainActivity.class.getSimpleName();
     private static final float GEOFENCE_RADIUS = 50; // 50 meters
+    // Question: What's a good expiry time? why is it mandatory and what's the best way to bypass it?
     private static final long GEOFENCE_TIMEOUT = 24 * 60 * 60 * 1000; // 24 hours
     private static final int PERMISSIONS_REQUEST_FINE_LOCATION = 111;
     private static final int PLACE_PICKER_REQUEST = 1;
@@ -120,6 +121,7 @@ public class MainActivity extends AppCompatActivity implements
                 editor.putBoolean(getString(R.string.setting_enabled), isChecked);
                 mIsEnabled = isChecked;
                 editor.commit();
+                // Force the loader refresh to update the Geofences
                 getSupportLoaderManager().restartLoader(PLACE_LOADER_ID, null, MainActivity.this);
             }
 
@@ -174,6 +176,8 @@ public class MainActivity extends AppCompatActivity implements
             return;
         }
         try {
+            // Question: What happens when I re-register them a lot? They seem to replace the existing ones
+            //          Is it a bad practice to do so?
             LocationServices.GeofencingApi.addGeofences(
                     mGoogleApiClient,
                     getGeofencingRequest(),
@@ -197,6 +201,7 @@ public class MainActivity extends AppCompatActivity implements
             return;
         }
         try {
+            // Question: Does this unregister EVERYTHING ever created by this app? It seems to be doing so!
             // Remove geofences.
             LocationServices.GeofencingApi.removeGeofences(
                     mGoogleApiClient,
@@ -434,10 +439,6 @@ public class MainActivity extends AppCompatActivity implements
      * @param view
      */
     public void onAddPlaceButtonClicked(View view) {
-        /**
-         * Even though the place picker doesn't need this permission to work, we still need to make sure
-         * the user knows that the app (geofences) will not work properly without that permission
-         */
         if (ActivityCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION)
                 != PackageManager.PERMISSION_GRANTED) {
             Toast.makeText(this, getString(R.string.need_location_permission_message), Toast.LENGTH_LONG).show();

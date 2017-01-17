@@ -8,6 +8,8 @@
         android:label="@string/app_name"
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
+        <!-- Question: Google's documentation says to put the API key here
+                        Any recommendations as to how to hide it from github? -->
         <meta-data
             android:name="com.google.android.geo.API_KEY"
             android:value="AIzaSyAMk2B2qpIh79qFcz7ZBBrz0L_9FlvWXjY"/>
