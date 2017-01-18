@@ -39,7 +39,6 @@ public class PlaceListAdapter extends RecyclerView.Adapter<PlaceListAdapter.Plac
      */
     public PlaceListAdapter(Context context) {
         this.mContext = context;
-
     }
 
     @Override
@@ -90,11 +89,6 @@ public class PlaceListAdapter extends RecyclerView.Adapter<PlaceListAdapter.Plac
             this.notifyDataSetChanged();
         }
     }
-
-    public interface ListItemClickListener {
-        void onListItemClick(long placeID);
-    }
-
 
     class PlaceViewHolder extends RecyclerView.ViewHolder {
 

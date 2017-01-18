@@ -38,6 +38,7 @@ import android.util.Log;
 import android.view.View;
 import android.widget.CompoundButton;
 import android.widget.Switch;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import com.example.android.shushme.provider.PlaceContract;
@@ -77,6 +78,7 @@ public class MainActivity extends AppCompatActivity implements
     private List<Geofence> mGeofenceList;
     private PlaceListAdapter mAdapter;
     private RecyclerView mRecyclerView;
+    private TextView mNoDataMessage;
     private PendingIntent mGeofencePendingIntent;
     private boolean mIsEnabled;
 
@@ -87,6 +89,7 @@ public class MainActivity extends AppCompatActivity implements
 
         // Set up the recycler view
         mRecyclerView = (RecyclerView) findViewById(R.id.places_list_recycler_view);
+        mNoDataMessage = (TextView) findViewById(R.id.empty_view);
         mRecyclerView.setLayoutManager(new LinearLayoutManager(this));
         mAdapter = new PlaceListAdapter(this);
         mRecyclerView.setAdapter(mAdapter);
@@ -420,6 +423,8 @@ public class MainActivity extends AppCompatActivity implements
         mAdapter.swapCursor(data);
         createGeofences(data);
         registerGeofences();
+        if(data.getCount()==0) mNoDataMessage.setVisibility(View.VISIBLE);
+        else mNoDataMessage.setVisibility(View.GONE);
     }
 
     @Override
