@@ -23,17 +23,12 @@ import android.app.TaskStackBuilder;
 import android.content.Context;
 import android.content.Intent;
 import android.graphics.BitmapFactory;
-import android.graphics.Color;
 import android.media.AudioManager;
 import android.support.v7.app.NotificationCompat;
-import android.text.TextUtils;
 import android.util.Log;
 
 import com.google.android.gms.location.Geofence;
 import com.google.android.gms.location.GeofencingEvent;
-
-import java.util.ArrayList;
-import java.util.List;
 
 public class GeofenceTransitionsIntentService extends IntentService {
 
@@ -63,16 +58,22 @@ public class GeofenceTransitionsIntentService extends IntentService {
 
         // Get the transition type.
         int geofenceTransition = geofencingEvent.getGeofenceTransition();
-
+        NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
         // Check which transition type has triggered this event
         if (geofenceTransition == Geofence.GEOFENCE_TRANSITION_ENTER) {
             //Set the phone to silent
-            AudioManager audioManager = (AudioManager) getSystemService(AUDIO_SERVICE);
-            audioManager.setRingerMode(AudioManager.RINGER_MODE_SILENT);
+            if (android.os.Build.VERSION.SDK_INT < 24 ||
+                    (android.os.Build.VERSION.SDK_INT >= 24 && !nm.isNotificationPolicyAccessGranted())) {
+                AudioManager audioManager = (AudioManager) getSystemService(AUDIO_SERVICE);
+                audioManager.setRingerMode(AudioManager.RINGER_MODE_SILENT);
+            }
         } else if (geofenceTransition == Geofence.GEOFENCE_TRANSITION_EXIT) {
             //Set the phone to normal
-            AudioManager audioManager = (AudioManager) getSystemService(AUDIO_SERVICE);
-            audioManager.setRingerMode(AudioManager.RINGER_MODE_NORMAL);
+            if (android.os.Build.VERSION.SDK_INT < 24 ||
+                    (android.os.Build.VERSION.SDK_INT >= 24 && !nm.isNotificationPolicyAccessGranted())) {
+                AudioManager audioManager = (AudioManager) getSystemService(AUDIO_SERVICE);
+                audioManager.setRingerMode(AudioManager.RINGER_MODE_NORMAL);
+            }
         } else {
             // Log the error.
             Log.e(TAG, String.format("Unknown transition : %d", geofenceTransition));

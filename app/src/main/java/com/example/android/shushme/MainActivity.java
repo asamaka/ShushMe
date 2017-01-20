@@ -16,6 +16,7 @@ package com.example.android.shushme;
 * limitations under the License.
 */
 
+import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.ContentValues;
 import android.content.Intent;
@@ -158,9 +159,14 @@ public class MainActivity extends AppCompatActivity implements
             ActivityCompat.requestPermissions(this,
                     new String[]{android.Manifest.permission.ACCESS_FINE_LOCATION},
                     PERMISSIONS_REQUEST_FINE_LOCATION);
-            return;
         }
-
+        NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+        // Check if the notification policy access has been granted for the app.
+        if (android.os.Build.VERSION.SDK_INT >= 24 && !nm.isNotificationPolicyAccessGranted()) {
+            Intent intent = new Intent(android.provider.Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS);
+            startActivity(intent);
+            Toast.makeText(MainActivity.this, getString(R.string.click_back_after_settings), Toast.LENGTH_LONG).show();
+        }
     }
 
     /***
@@ -298,8 +304,7 @@ public class MainActivity extends AppCompatActivity implements
                         && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                     // permission was granted, yay!
                     Log.i(TAG, "FINE_LOCATION permission granted!");
-                    if (mGoogleApiClient.isConnected()) mGoogleApiClient.disconnect();
-                    mGoogleApiClient.connect();
+                    getSupportLoaderManager().restartLoader(PLACE_LOADER_ID, null, this);
                 } else {
                     Log.i(TAG, "FINE_LOCATION permission denied by user!");
                 }
@@ -423,7 +428,7 @@ public class MainActivity extends AppCompatActivity implements
         mAdapter.swapCursor(data);
         createGeofences(data);
         registerGeofences();
-        if(data.getCount()==0) mNoDataMessage.setVisibility(View.VISIBLE);
+        if (data.getCount() == 0) mNoDataMessage.setVisibility(View.VISIBLE);
         else mNoDataMessage.setVisibility(View.GONE);
     }
 

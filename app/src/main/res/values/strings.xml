@@ -12,4 +12,5 @@
     <string name="touch_to_relaunch">Touch to launch the app.</string>
     <string name="unknown_geofence_transition">Unknown transition</string>
     <string name="no_data_available">List is empty!</string>
+    <string name="click_back_after_settings">Click back after you enable DND</string>
 </resources>
