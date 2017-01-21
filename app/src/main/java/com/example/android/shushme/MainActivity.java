@@ -29,7 +29,7 @@ import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.app.LoaderManager;
-import android.support.v4.content.AsyncTaskLoader;
+import android.support.v4.content.CursorLoader;
 import android.support.v4.content.Loader;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.LinearLayoutManager;
@@ -111,8 +111,6 @@ public class MainActivity extends AppCompatActivity implements
                 uri = uri.buildUpon().appendPath(stringId).build();
                 // Delete the place that was swiped off
                 getContentResolver().delete(uri, null, null);
-                // Force the loader refresh to update the Geofences and UI
-                getSupportLoaderManager().restartLoader(PLACE_LOADER_ID, null, MainActivity.this);
             }
         }).attachToRecyclerView(mRecyclerView);
 
@@ -125,8 +123,8 @@ public class MainActivity extends AppCompatActivity implements
                 editor.putBoolean(getString(R.string.setting_enabled), isChecked);
                 mIsEnabled = isChecked;
                 editor.commit();
-                // Force the loader refresh to update the Geofences
-                getSupportLoaderManager().restartLoader(PLACE_LOADER_ID, null, MainActivity.this);
+                if (isChecked) registerGeofences();
+                else unRegisterGeofences();
             }
 
         });
@@ -141,9 +139,6 @@ public class MainActivity extends AppCompatActivity implements
         // Initialize the Geofences list for registering them
         mGeofenceList = new ArrayList<>();
 
-        // Initialize the loader to load the list from the database
-        getSupportLoaderManager().initLoader(PLACE_LOADER_ID, null, this);
-
         // Build up the LocationServices API client
         // Uses the addApi method to request the LocationServices API
         // Also uses enableAutoManage to automatically when to connect/suspend the client
@@ -153,6 +148,9 @@ public class MainActivity extends AppCompatActivity implements
                 .addApi(LocationServices.API)
                 .enableAutoManage(this, this)
                 .build();
+
+        // Initialize the loader to load the list from the database
+        getSupportLoaderManager().initLoader(PLACE_LOADER_ID, null, this);
 
         // Check for required permissions and request them for Android 6.0+
         if (ActivityCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
@@ -180,7 +178,7 @@ public class MainActivity extends AppCompatActivity implements
     private void registerGeofences() {
         // Check that the main switch is enabled, the API client is connected and that the list has
         // Geofences in it
-        if (!mIsEnabled || !mGoogleApiClient.isConnected() ||
+        if (!mIsEnabled || mGoogleApiClient == null || !mGoogleApiClient.isConnected() ||
                 mGeofenceList == null || mGeofenceList.size() == 0) {
             return;
         }
@@ -206,7 +204,7 @@ public class MainActivity extends AppCompatActivity implements
      * Triggers {@link #onResult} when the geofences have been unregistered successfully
      */
     private void unRegisterGeofences() {
-        if (!mGoogleApiClient.isConnected()) {
+        if (mGoogleApiClient == null || !mGoogleApiClient.isConnected()) {
             return;
         }
         try {
@@ -279,13 +277,6 @@ public class MainActivity extends AppCompatActivity implements
         return mGeofencePendingIntent;
     }
 
-    @Override
-    protected void onResume() {
-        super.onResume();
-        // Force a loader refresh
-        getSupportLoaderManager().restartLoader(PLACE_LOADER_ID, null, this);
-    }
-
     /***
      * Handles the response to the permissions request presented to the user
      *
@@ -303,8 +294,7 @@ public class MainActivity extends AppCompatActivity implements
                 if (grantResults.length > 0
                         && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                     // permission was granted, yay!
-                    Log.i(TAG, "FINE_LOCATION permission granted!");
-                    getSupportLoaderManager().restartLoader(PLACE_LOADER_ID, null, this);
+                    registerGeofences();
                 } else {
                     Log.i(TAG, "FINE_LOCATION permission denied by user!");
                 }
@@ -320,8 +310,7 @@ public class MainActivity extends AppCompatActivity implements
      */
     @Override
     public void onConnected(@Nullable Bundle connectionHint) {
-        // Refresh the loader to force registering the geofences
-        getSupportLoaderManager().restartLoader(PLACE_LOADER_ID, null, MainActivity.this);
+        registerGeofences();
     }
 
     /***
@@ -374,52 +363,18 @@ public class MainActivity extends AppCompatActivity implements
             contentValues.put(PlaceContract.PlaceEntry.COLUMN_PLACE_UID, placeUID);
             contentValues.put(PlaceContract.PlaceEntry.COLUMN_PLACE_LATITUDE, (float) placeLat);
             contentValues.put(PlaceContract.PlaceEntry.COLUMN_PLACE_LONGITUDE, (float) placeLng);
-            Uri uri = getContentResolver().insert(PlaceContract.PlaceEntry.CONTENT_URI, contentValues);
-            if (uri != null) {
-                Log.i(TAG, "New place added to DB");
-                getSupportLoaderManager().restartLoader(PLACE_LOADER_ID, null, MainActivity.this);
-            }
-
+            getContentResolver().insert(PlaceContract.PlaceEntry.CONTENT_URI, contentValues);
         }
     }
 
     @Override
     public Loader<Cursor> onCreateLoader(int id, Bundle args) {
-        return new AsyncTaskLoader<Cursor>(this) {
-            Cursor mPlaceData = null;
-
-            @Override
-            protected void onStartLoading() {
-                // QUESTION: Don't I also need to check for takeContentChanged? (Sunshine and ANDFUN1 don't!)
-                if (mPlaceData != null) {
-                    deliverResult(mPlaceData);
-                } else {
-                    forceLoad();
-                }
-            }
-
-            @Override
-            public Cursor loadInBackground() {
-                // Query and load all data in the background
-                try {
-                    return getContentResolver().query(PlaceContract.PlaceEntry.CONTENT_URI,
-                            null,
-                            null,
-                            null,
-                            PlaceContract.PlaceEntry.COLUMN_PLACE_NAME);
-
-                } catch (Exception e) {
-                    Log.e(TAG, "Failed to load data!");
-                    e.printStackTrace();
-                    return null;
-                }
-            }
-
-            public void deliverResult(Cursor data) {
-                mPlaceData = data;
-                super.deliverResult(data);
-            }
-        };
+        return new CursorLoader(this,
+                PlaceContract.PlaceEntry.CONTENT_URI,
+                null,
+                null,
+                null,
+                PlaceContract.PlaceEntry.COLUMN_PLACE_NAME);
     }
 
     @Override
@@ -440,7 +395,10 @@ public class MainActivity extends AppCompatActivity implements
 
     @Override
     public void onResult(@NonNull Result result) {
-        Log.i(TAG, result.toString());
+        if (!result.getStatus().isSuccess()) {
+            Log.e(TAG, String.format("Error adding/removing geofence : %s",
+                    result.getStatus().toString()));
+        }
     }
 
     /***
