@@ -17,7 +17,6 @@ package com.example.android.shushme;
 */
 
 import android.app.NotificationManager;
-import android.app.PendingIntent;
 import android.content.ContentValues;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -47,41 +46,28 @@ import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.GooglePlayServicesNotAvailableException;
 import com.google.android.gms.common.GooglePlayServicesRepairableException;
 import com.google.android.gms.common.api.GoogleApiClient;
-import com.google.android.gms.common.api.Result;
-import com.google.android.gms.common.api.ResultCallback;
-import com.google.android.gms.location.Geofence;
-import com.google.android.gms.location.GeofencingRequest;
 import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.location.places.Place;
 import com.google.android.gms.location.places.ui.PlacePicker;
-
-import java.util.ArrayList;
-import java.util.List;
 
 
 public class MainActivity extends AppCompatActivity implements
         GoogleApiClient.ConnectionCallbacks,
         GoogleApiClient.OnConnectionFailedListener,
-        LoaderManager.LoaderCallbacks<Cursor>,
-        ResultCallback {
+        LoaderManager.LoaderCallbacks<Cursor> {
 
     // Constants
     public static final String TAG = MainActivity.class.getSimpleName();
-    private static final float GEOFENCE_RADIUS = 50; // 50 meters
-    // Question: What's a good expiry time? why is it mandatory and what's the best way to bypass it?
-    private static final long GEOFENCE_TIMEOUT = 24 * 60 * 60 * 1000; // 24 hours
     private static final int PERMISSIONS_REQUEST_FINE_LOCATION = 111;
     private static final int PLACE_PICKER_REQUEST = 1;
     private static final int PLACE_LOADER_ID = 0;
 
     // Member variables
-    private GoogleApiClient mGoogleApiClient;
-    private List<Geofence> mGeofenceList;
     private PlaceListAdapter mAdapter;
     private RecyclerView mRecyclerView;
     private TextView mNoDataMessage;
-    private PendingIntent mGeofencePendingIntent;
     private boolean mIsEnabled;
+    private Geofencing mGeofencing;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -114,8 +100,22 @@ public class MainActivity extends AppCompatActivity implements
             }
         }).attachToRecyclerView(mRecyclerView);
 
-        // Handle enable/disable switch change
+        // Build up the LocationServices API client
+        // Uses the addApi method to request the LocationServices API
+        // Also uses enableAutoManage to automatically when to connect/suspend the client
+        GoogleApiClient client = new GoogleApiClient.Builder(this)
+                .addConnectionCallbacks(this)
+                .addOnConnectionFailedListener(this)
+                .addApi(LocationServices.API)
+                .enableAutoManage(this, this)
+                .build();
+
+        mGeofencing = new Geofencing(this, client);
+
+        // Initialize the switch state and Handle enable/disable switch change
         Switch onOffSwitch = (Switch) findViewById(R.id.enable_switch);
+        mIsEnabled = getPreferences(MODE_PRIVATE).getBoolean(getString(R.string.setting_enabled), false);
+        onOffSwitch.setChecked(mIsEnabled);
         onOffSwitch.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
             @Override
             public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
@@ -123,31 +123,11 @@ public class MainActivity extends AppCompatActivity implements
                 editor.putBoolean(getString(R.string.setting_enabled), isChecked);
                 mIsEnabled = isChecked;
                 editor.commit();
-                if (isChecked) registerGeofences();
-                else unRegisterGeofences();
+                if (isChecked) mGeofencing.registerAllGeofences();
+                else mGeofencing.unRegisterAllGeofences();
             }
 
         });
-
-        // Initialize the switch state
-        mIsEnabled = getPreferences(MODE_PRIVATE).getBoolean(getString(R.string.setting_enabled), false);
-        onOffSwitch.setChecked(mIsEnabled);
-
-        // Initialize the pending intent that will be used to create the geofence request
-        mGeofencePendingIntent = null;
-
-        // Initialize the Geofences list for registering them
-        mGeofenceList = new ArrayList<>();
-
-        // Build up the LocationServices API client
-        // Uses the addApi method to request the LocationServices API
-        // Also uses enableAutoManage to automatically when to connect/suspend the client
-        mGoogleApiClient = new GoogleApiClient.Builder(this)
-                .addConnectionCallbacks(this)
-                .addOnConnectionFailedListener(this)
-                .addApi(LocationServices.API)
-                .enableAutoManage(this, this)
-                .build();
 
         // Initialize the loader to load the list from the database
         getSupportLoaderManager().initLoader(PLACE_LOADER_ID, null, this);
@@ -168,116 +148,6 @@ public class MainActivity extends AppCompatActivity implements
     }
 
     /***
-     * Registers the list of Geofences specified in mGeofenceList with Google Place Services
-     * Uses {@code #mGoogleApiClient} to connect to Google Place Services
-     * Uses {@link #getGeofencingRequest} to get the list of Geofences to be registered
-     * Uses {@link #getGeofencePendingIntent} to get the pending intent to launch the IntentService
-     * when the Geofence is triggered
-     * Triggers {@link #onResult} when the geofences have been registered successfully
-     */
-    private void registerGeofences() {
-        // Check that the main switch is enabled, the API client is connected and that the list has
-        // Geofences in it
-        if (!mIsEnabled || mGoogleApiClient == null || !mGoogleApiClient.isConnected() ||
-                mGeofenceList == null || mGeofenceList.size() == 0) {
-            return;
-        }
-        try {
-            // Question: What happens when I re-register them a lot? They seem to replace the existing ones
-            //          Is it a bad practice to do so?
-            LocationServices.GeofencingApi.addGeofences(
-                    mGoogleApiClient,
-                    getGeofencingRequest(),
-                    getGeofencePendingIntent()
-            ).setResultCallback(this);
-        } catch (SecurityException securityException) {
-            // Catch exception generated if the app does not use ACCESS_FINE_LOCATION permission.
-            Log.e(TAG, securityException.getMessage());
-        }
-    }
-
-    /***
-     * Unregisters all the Geofences created by this app from Google Place Services
-     * Uses {@code #mGoogleApiClient} to connect to Google Place Services
-     * Uses {@link #getGeofencePendingIntent} to get the pending intent passed when
-     * registering the Geofences in the first place
-     * Triggers {@link #onResult} when the geofences have been unregistered successfully
-     */
-    private void unRegisterGeofences() {
-        if (mGoogleApiClient == null || !mGoogleApiClient.isConnected()) {
-            return;
-        }
-        try {
-            // Question: Does this unregister EVERYTHING ever created by this app? It seems to be doing so!
-            // Remove geofences.
-            LocationServices.GeofencingApi.removeGeofences(
-                    mGoogleApiClient,
-                    // This is the same pending intent that was used in registerGeofences
-                    getGeofencePendingIntent()
-            ).setResultCallback(this);
-        } catch (SecurityException securityException) {
-            // Catch exception generated if the app does not use ACCESS_FINE_LOCATION permission.
-            Log.e(TAG, securityException.getMessage());
-        }
-    }
-
-    /***
-     * Creates an ArrayList of Geofences and setting it to mGeofenceList.
-     * Uses the Place UID defined by the API as the Geofence Id
-     *
-     * @param data the cursor result of the local database query
-     */
-    private void createGeofences(Cursor data) {
-        mGeofenceList = new ArrayList<Geofence>();
-        if (data == null || data.getCount() == 0) return;
-        while (data.moveToNext()) {
-            // Read the place information from the DB cursor
-            String placeUID = data.getString(data.getColumnIndex(PlaceContract.PlaceEntry.COLUMN_PLACE_UID));
-            float placeLat = data.getFloat(data.getColumnIndex(PlaceContract.PlaceEntry.COLUMN_PLACE_LATITUDE));
-            float placeLng = data.getFloat(data.getColumnIndex(PlaceContract.PlaceEntry.COLUMN_PLACE_LONGITUDE));
-            // Build a Geofence object
-            Geofence geofence = new Geofence.Builder()
-                    .setRequestId(placeUID)
-                    .setExpirationDuration(GEOFENCE_TIMEOUT)
-                    .setCircularRegion(placeLat, placeLng, GEOFENCE_RADIUS)
-                    .setTransitionTypes(Geofence.GEOFENCE_TRANSITION_ENTER | Geofence.GEOFENCE_TRANSITION_EXIT)
-                    .build();
-            // Add it to the list
-            mGeofenceList.add(geofence);
-        }
-    }
-
-    /***
-     * Creates a GeofencingRequest object using the mGeofenceList ArrayList of Geofences
-     * Used by {@code #registerGeofences}
-     *
-     * @return the GeofencingRequest object
-     */
-    private GeofencingRequest getGeofencingRequest() {
-        GeofencingRequest.Builder builder = new GeofencingRequest.Builder();
-        builder.setInitialTrigger(GeofencingRequest.INITIAL_TRIGGER_ENTER);
-        builder.addGeofences(mGeofenceList);
-        return builder.build();
-    }
-
-    /***
-     * Creates a PendingIntent object using the GeofenceTransitionsIntentService class
-     * Used by {@code #registerGeofences}
-     *
-     * @return the PendingIntent object
-     */
-    private PendingIntent getGeofencePendingIntent() {
-        // Reuse the PendingIntent if we already have it.
-        if (mGeofencePendingIntent != null) {
-            return mGeofencePendingIntent;
-        }
-        Intent intent = new Intent(this, GeofenceTransitionsIntentService.class);
-        mGeofencePendingIntent = PendingIntent.getService(this, 0, intent, PendingIntent.
-                FLAG_UPDATE_CURRENT);
-        return mGeofencePendingIntent;
-    }
-
-    /***
      * Handles the response to the permissions request presented to the user
      *
      * @param requestCode  The permission request code passed in requestPermissions
@@ -294,7 +164,7 @@ public class MainActivity extends AppCompatActivity implements
                 if (grantResults.length > 0
                         && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                     // permission was granted, yay!
-                    registerGeofences();
+                    if (mIsEnabled) mGeofencing.registerAllGeofences();
                 } else {
                     Log.i(TAG, "FINE_LOCATION permission denied by user!");
                 }
@@ -310,7 +180,7 @@ public class MainActivity extends AppCompatActivity implements
      */
     @Override
     public void onConnected(@Nullable Bundle connectionHint) {
-        registerGeofences();
+        if (mIsEnabled) mGeofencing.registerAllGeofences();
     }
 
     /***
@@ -379,26 +249,17 @@ public class MainActivity extends AppCompatActivity implements
 
     @Override
     public void onLoadFinished(Loader<Cursor> loader, Cursor data) {
-        unRegisterGeofences();
+        mGeofencing.unRegisterAllGeofences();
         mAdapter.swapCursor(data);
-        createGeofences(data);
-        registerGeofences();
+        mGeofencing.updateGeofencesList(data);
+        if (mIsEnabled) mGeofencing.registerAllGeofences();
         if (data.getCount() == 0) mNoDataMessage.setVisibility(View.VISIBLE);
         else mNoDataMessage.setVisibility(View.GONE);
     }
 
     @Override
     public void onLoaderReset(Loader<Cursor> loader) {
-        unRegisterGeofences();
         mAdapter.swapCursor(null);
-    }
-
-    @Override
-    public void onResult(@NonNull Result result) {
-        if (!result.getStatus().isSuccess()) {
-            Log.e(TAG, String.format("Error adding/removing geofence : %s",
-                    result.getStatus().toString()));
-        }
     }
 
     /***

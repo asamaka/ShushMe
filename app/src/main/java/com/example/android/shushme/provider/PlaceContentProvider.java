@@ -76,15 +76,11 @@ public class PlaceContentProvider extends ContentProvider {
         // Write URI matching code to identify the match for the places directory
         int match = sUriMatcher.match(uri);
         Uri returnUri; // URI to be returned
-
-        Log.d(TAG, String.format("Matched uri: %d", match));
         switch (match) {
             case PLACES:
                 // Insert new values into the database
                 long id = db.insert(PlaceEntry.TABLE_NAME, null, values);
-                Log.d(TAG, "Inserted");
                 if (id > 0) {
-                    Log.d(TAG, String.format("id = %d", id));
                     returnUri = ContentUris.withAppendedId(PlaceContract.PlaceEntry.CONTENT_URI, id);
                 } else {
                     throw new android.database.SQLException("Failed to insert row into " + uri);
