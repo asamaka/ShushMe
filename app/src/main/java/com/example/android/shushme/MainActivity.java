@@ -22,7 +22,6 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
-import android.net.Uri;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
@@ -33,7 +32,6 @@ import android.support.v4.content.Loader;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
-import android.support.v7.widget.helper.ItemTouchHelper;
 import android.util.Log;
 import android.view.View;
 import android.widget.CompoundButton;
@@ -48,8 +46,8 @@ import com.google.android.gms.common.GooglePlayServicesRepairableException;
 import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.location.places.Place;
+import com.google.android.gms.location.places.Places;
 import com.google.android.gms.location.places.ui.PlacePicker;
-
 
 public class MainActivity extends AppCompatActivity implements
         GoogleApiClient.ConnectionCallbacks,
@@ -68,11 +66,20 @@ public class MainActivity extends AppCompatActivity implements
     private TextView mNoDataMessage;
     private boolean mIsEnabled;
     private Geofencing mGeofencing;
+    private boolean mNeverSynced;
 
+    /**
+     * Called when the activity is starting
+     *
+     * @param savedInstanceState The Bundle that contains the data supplied in onSaveInstanceState
+     */
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
+        // Boolean to synchronize cached data with live places only once
+        mNeverSynced = true;
 
         // Set up the recycler view
         mRecyclerView = (RecyclerView) findViewById(R.id.places_list_recycler_view);
@@ -80,37 +87,6 @@ public class MainActivity extends AppCompatActivity implements
         mRecyclerView.setLayoutManager(new LinearLayoutManager(this));
         mAdapter = new PlaceListAdapter(this);
         mRecyclerView.setAdapter(mAdapter);
-
-        // Handle swiping off items
-        new ItemTouchHelper(new ItemTouchHelper.SimpleCallback(0, ItemTouchHelper.LEFT | ItemTouchHelper.RIGHT) {
-            @Override
-            public boolean onMove(RecyclerView recyclerView, RecyclerView.ViewHolder viewHolder, RecyclerView.ViewHolder target) {
-                return false;
-            }
-
-            // Called when a user swipes left or right on a ViewHolder
-            @Override
-            public void onSwiped(RecyclerView.ViewHolder viewHolder, int swipeDir) {
-                long id = (long) viewHolder.itemView.getTag();
-                String stringId = Long.toString(id);
-                Uri uri = PlaceContract.PlaceEntry.CONTENT_URI;
-                uri = uri.buildUpon().appendPath(stringId).build();
-                // Delete the place that was swiped off
-                getContentResolver().delete(uri, null, null);
-            }
-        }).attachToRecyclerView(mRecyclerView);
-
-        // Build up the LocationServices API client
-        // Uses the addApi method to request the LocationServices API
-        // Also uses enableAutoManage to automatically when to connect/suspend the client
-        GoogleApiClient client = new GoogleApiClient.Builder(this)
-                .addConnectionCallbacks(this)
-                .addOnConnectionFailedListener(this)
-                .addApi(LocationServices.API)
-                .enableAutoManage(this, this)
-                .build();
-
-        mGeofencing = new Geofencing(this, client);
 
         // Initialize the switch state and Handle enable/disable switch change
         Switch onOffSwitch = (Switch) findViewById(R.id.enable_switch);
@@ -128,6 +104,19 @@ public class MainActivity extends AppCompatActivity implements
             }
 
         });
+
+        // Build up the LocationServices API client
+        // Uses the addApi method to request the LocationServices API
+        // Also uses enableAutoManage to automatically when to connect/suspend the client
+        GoogleApiClient client = new GoogleApiClient.Builder(this)
+                .addConnectionCallbacks(this)
+                .addOnConnectionFailedListener(this)
+                .addApi(LocationServices.API)
+                .addApi(Places.GEO_DATA_API)
+                .enableAutoManage(this, this)
+                .build();
+
+        mGeofencing = new Geofencing(this, client);
 
         // Initialize the loader to load the list from the database
         getSupportLoaderManager().initLoader(PLACE_LOADER_ID, null, this);
@@ -203,40 +192,13 @@ public class MainActivity extends AppCompatActivity implements
         Log.e(TAG, "API Client Connection Failed!");
     }
 
-
-    /***
-     * Called when the Place Picker Activity returns back with a selected place (or after canceling)
+    /**
+     * Instantiates and returns a new CursorLoader
      *
-     * @param requestCode The request code passed when calling startActivityForResult
-     * @param resultCode  The result code specified by the second activity
-     * @param data        The Intent that carries the result data.
+     * @param id   The ID whose loader is to be created.
+     * @param args Any arguments supplied by the caller
+     * @return A new CursorLoader instance that is ready to start loading
      */
-    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        if (requestCode == PLACE_PICKER_REQUEST && resultCode == RESULT_OK) {
-            Place place = PlacePicker.getPlace(this, data);
-            if (place == null) {
-                Log.i(TAG, "No place selected");
-                return;
-            }
-
-            // Extract the place information from the API
-            String placeName = place.getName().toString();
-            String placeAddress = place.getAddress().toString();
-            String placeUID = place.getId();
-            double placeLat = place.getLatLng().latitude;
-            double placeLng = place.getLatLng().longitude;
-
-            // Insert a new place into DB
-            ContentValues contentValues = new ContentValues();
-            contentValues.put(PlaceContract.PlaceEntry.COLUMN_PLACE_NAME, placeName);
-            contentValues.put(PlaceContract.PlaceEntry.COLUMN_PLACE_ADDRESS, placeAddress);
-            contentValues.put(PlaceContract.PlaceEntry.COLUMN_PLACE_UID, placeUID);
-            contentValues.put(PlaceContract.PlaceEntry.COLUMN_PLACE_LATITUDE, (float) placeLat);
-            contentValues.put(PlaceContract.PlaceEntry.COLUMN_PLACE_LONGITUDE, (float) placeLng);
-            getContentResolver().insert(PlaceContract.PlaceEntry.CONTENT_URI, contentValues);
-        }
-    }
-
     @Override
     public Loader<Cursor> onCreateLoader(int id, Bundle args) {
         return new CursorLoader(this,
@@ -247,9 +209,19 @@ public class MainActivity extends AppCompatActivity implements
                 PlaceContract.PlaceEntry.COLUMN_PLACE_NAME);
     }
 
+    /**
+     * Called when a previously created loader has finished its load
+     *
+     * @param loader The Loader that has finished
+     * @param data   The Cursor data generated by the Loader
+     */
     @Override
     public void onLoadFinished(Loader<Cursor> loader, Cursor data) {
-        mGeofencing.unRegisterAllGeofences();
+        // Only do this once
+        if (mNeverSynced) {
+            mNeverSynced = false;
+            mGeofencing.syncPlacesData(data);
+        }
         mAdapter.swapCursor(data);
         mGeofencing.updateGeofencesList(data);
         if (mIsEnabled) mGeofencing.registerAllGeofences();
@@ -285,6 +257,39 @@ public class MainActivity extends AppCompatActivity implements
             Log.e(TAG, String.format("GooglePlayServices Not Available [%s]", e.getMessage()));
         } catch (Exception e) {
             Log.e(TAG, String.format("PlacePicker Exception: %s", e.getMessage()));
+        }
+    }
+
+    /***
+     * Called when the Place Picker Activity returns back with a selected place (or after canceling)
+     *
+     * @param requestCode The request code passed when calling startActivityForResult
+     * @param resultCode  The result code specified by the second activity
+     * @param data        The Intent that carries the result data.
+     */
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        if (requestCode == PLACE_PICKER_REQUEST && resultCode == RESULT_OK) {
+            Place place = PlacePicker.getPlace(this, data);
+            if (place == null) {
+                Log.i(TAG, "No place selected");
+                return;
+            }
+
+            // Extract the place information from the API
+            String placeName = place.getName().toString();
+            String placeAddress = place.getAddress().toString();
+            String placeUID = place.getId();
+            double placeLat = place.getLatLng().latitude;
+            double placeLng = place.getLatLng().longitude;
+
+            // Insert a new place into DB
+            ContentValues contentValues = new ContentValues();
+            contentValues.put(PlaceContract.PlaceEntry.COLUMN_PLACE_NAME, placeName);
+            contentValues.put(PlaceContract.PlaceEntry.COLUMN_PLACE_ADDRESS, placeAddress);
+            contentValues.put(PlaceContract.PlaceEntry.COLUMN_PLACE_UID, placeUID);
+            contentValues.put(PlaceContract.PlaceEntry.COLUMN_PLACE_LATITUDE, (float) placeLat);
+            contentValues.put(PlaceContract.PlaceEntry.COLUMN_PLACE_LONGITUDE, (float) placeLng);
+            getContentResolver().insert(PlaceContract.PlaceEntry.CONTENT_URI, contentValues);
         }
     }
 }

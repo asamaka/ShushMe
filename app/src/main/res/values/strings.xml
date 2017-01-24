@@ -3,8 +3,8 @@
     <string name="unknownLocation">Unknown!</string>
     <string name="enable">Enable</string>
     <string name="add_new_location">Add new location</string>
-    <string name="geofence_entered">Silent mode activated</string>
-    <string name="geofence_exited">Back to normal</string>
+    <string name="silent_mode_activated">Silent mode activated</string>
+    <string name="back_to_normal">Back to normal</string>
     <string name="location_list">Locations</string>
     <string name="need_location_permission_message">You need to enable location permissions first</string>
     <string name="setting_enabled" translatable="false">EnabledSetting</string>

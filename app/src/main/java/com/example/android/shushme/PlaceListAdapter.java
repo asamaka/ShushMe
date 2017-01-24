@@ -41,6 +41,13 @@ public class PlaceListAdapter extends RecyclerView.Adapter<PlaceListAdapter.Plac
         this.mContext = context;
     }
 
+    /**
+     * Called when RecyclerView needs a new ViewHolder of the given type to represent an item
+     *
+     * @param parent   The ViewGroup into which the new View will be added
+     * @param viewType The view type of the new View
+     * @return A new PlaceViewHolder that holds a View with the item_place_card layout
+     */
     @Override
     public PlaceViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
         // Get the RecyclerView item layout
@@ -49,6 +56,12 @@ public class PlaceListAdapter extends RecyclerView.Adapter<PlaceListAdapter.Plac
         return new PlaceViewHolder(view);
     }
 
+    /**
+     * Binds the data from a particular position in the cursor to the corresponding view holder
+     *
+     * @param holder   The PlaceViewHolder instance corresponding to the required position
+     * @param position The current position that needs to be loaded with data
+     */
     @Override
     public void onBindViewHolder(PlaceViewHolder holder, int position) {
         // Move the mCursor to the position of the item to be displayed
@@ -68,6 +81,11 @@ public class PlaceListAdapter extends RecyclerView.Adapter<PlaceListAdapter.Plac
     }
 
 
+    /**
+     * Returns the number of items in the cursor
+     *
+     * @return Number of items in the cursor, or 0 if null
+     */
     @Override
     public int getItemCount() {
         if (mCursor == null) return 0;
@@ -90,6 +108,9 @@ public class PlaceListAdapter extends RecyclerView.Adapter<PlaceListAdapter.Plac
         }
     }
 
+    /**
+     * PlaceViewHolder class for the recycler view item
+     */
     class PlaceViewHolder extends RecyclerView.ViewHolder {
 
         TextView nameTextView;

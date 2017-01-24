@@ -25,7 +25,6 @@ import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.net.Uri;
 import android.support.annotation.NonNull;
-import android.util.Log;
 
 import static com.example.android.shushme.provider.PlaceContract.PlaceEntry;
 
@@ -181,7 +180,31 @@ public class PlaceContentProvider extends ContentProvider {
     @Override
     public int update(@NonNull Uri uri, ContentValues values, String selection,
                       String[] selectionArgs) {
-        throw new UnsupportedOperationException("Not yet implemented");
+        // Get access to underlying database
+        final SQLiteDatabase db = mPlaceDbHelper.getWritableDatabase();
+        int match = sUriMatcher.match(uri);
+        // Keep track of the number of updated places
+        int placesUpdated;
+
+        switch (match) {
+            case PLACE_WITH_ID:
+                // Get the place ID from the URI path
+                String id = uri.getPathSegments().get(1);
+                // Use selections/selectionArgs to filter for this ID
+                placesUpdated = db.update(PlaceEntry.TABLE_NAME, values, "_id=?", new String[]{id});
+                break;
+            // Default exception
+            default:
+                throw new UnsupportedOperationException("Unknown uri: " + uri);
+        }
+
+        // Notify the resolver of a change and return the number of items updated
+        if (placesUpdated != 0) {
+            // A place (or more) was updated, set notification
+            getContext().getContentResolver().notifyChange(uri, null);
+        }
+        // Return the number of places deleted
+        return placesUpdated;
     }
 
 

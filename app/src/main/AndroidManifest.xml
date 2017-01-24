@@ -25,7 +25,8 @@
             android:authorities="com.example.android.shushme"
             android:exported="false"/>
 
-        <service android:name=".GeofenceTransitionsIntentService"/>
+        <receiver android:name=".GeofenceBroadcastReceiver" />
+
     </application>
 
     <uses-permission android:name="com.google.android.providers.gsf.permission.READ_GSERVICES"/>
