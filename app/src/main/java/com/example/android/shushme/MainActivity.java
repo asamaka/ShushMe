@@ -34,6 +34,7 @@ import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
 import android.util.Log;
 import android.view.View;
+import android.widget.CheckBox;
 import android.widget.CompoundButton;
 import android.widget.Switch;
 import android.widget.TextView;
@@ -123,45 +124,6 @@ public class MainActivity extends AppCompatActivity implements
         // Initialize the loader to load the list from the database
         getSupportLoaderManager().initLoader(PLACE_LOADER_ID, null, this);
 
-        // Check for required permissions and request them for Android 6.0+
-        if (ActivityCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(this,
-                    new String[]{android.Manifest.permission.ACCESS_FINE_LOCATION},
-                    PERMISSIONS_REQUEST_FINE_LOCATION);
-        }
-        NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
-        // Check if the notification policy access has been granted for the app.
-        if (android.os.Build.VERSION.SDK_INT >= 24 && !nm.isNotificationPolicyAccessGranted()) {
-            Intent intent = new Intent(android.provider.Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS);
-            startActivity(intent);
-            Toast.makeText(MainActivity.this, getString(R.string.click_back_after_settings), Toast.LENGTH_LONG).show();
-        }
-    }
-
-    /***
-     * Handles the response to the permissions request presented to the user
-     *
-     * @param requestCode  The permission request code passed in requestPermissions
-     * @param permissions  The requested permissions. Never null.
-     * @param grantResults The grant results for the corresponding permissions
-     *                     which is either PERMISSION_GRANTED or PERMISSION_DENIED. Never null.
-     */
-    @Override
-    public void onRequestPermissionsResult(int requestCode,
-                                           String permissions[], int[] grantResults) {
-        switch (requestCode) {
-            case PERMISSIONS_REQUEST_FINE_LOCATION: {
-                // If request is cancelled, the result arrays are empty.
-                if (grantResults.length > 0
-                        && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                    // permission was granted, yay!
-                    if (mIsEnabled) mGeofencing.registerAllGeofences();
-                } else {
-                    Log.i(TAG, "FINE_LOCATION permission denied by user!");
-                }
-                return;
-            }
-        }
     }
 
     /***
@@ -293,5 +255,43 @@ public class MainActivity extends AppCompatActivity implements
             contentValues.put(PlaceContract.PlaceEntry.COLUMN_PLACE_LONGITUDE, (float) placeLng);
             getContentResolver().insert(PlaceContract.PlaceEntry.CONTENT_URI, contentValues);
         }
+    }
+
+    @Override
+    public void onResume(){
+        super.onResume();
+
+        // Initialize location permissions checkbox
+        CheckBox locationPermissions = (CheckBox) findViewById(R.id.location_permission_checkbox);
+        if (ActivityCompat.checkSelfPermission(MainActivity.this,
+                android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            locationPermissions.setChecked(false);
+        } else {
+            locationPermissions.setChecked(true);
+            locationPermissions.setEnabled(false);
+        }
+
+        // Initialize ringer permissions checkbox
+        CheckBox ringerPermissions = (CheckBox) findViewById(R.id.ringer_permissions_checkbox);
+        NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+        // Check if the API supports such permission change and check if permission is granted
+        if (android.os.Build.VERSION.SDK_INT >= 24 && !nm.isNotificationPolicyAccessGranted()) {
+            ringerPermissions.setChecked(false);
+        } else {
+            ringerPermissions.setChecked(true);
+            ringerPermissions.setEnabled(false);
+        }
+    }
+
+    public void onRingerPermissionsClicked(View view) {
+        Intent intent = new Intent(android.provider.Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS);
+        startActivity(intent);
+    }
+
+    public void onLocationPermissionClicked(View view) {
+        ActivityCompat.requestPermissions(MainActivity.this,
+                new String[]{android.Manifest.permission.ACCESS_FINE_LOCATION},
+                PERMISSIONS_REQUEST_FINE_LOCATION);
+
     }
 }
