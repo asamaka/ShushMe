@@ -135,62 +135,6 @@ public class Geofencing implements ResultCallback {
         }
     }
 
-    // TODO: move this method somewhere else?
-
-    /**
-     * Calls the Geo Data API getPlaceById to sync any outdated information cached in the database
-     *
-     * @param data A Cursor of all the data currently in the database
-     */
-    public void syncPlacesData(Cursor data) {
-        if (data == null || data.getCount() == 0) return;
-        while (data.moveToNext()) {
-            final long placeId = data.getLong(data.getColumnIndex(PlaceContract.PlaceEntry._ID));
-            final String placeUID = data.getString(data.getColumnIndex(PlaceContract.PlaceEntry.COLUMN_PLACE_UID));
-            final String placeName = data.getString(data.getColumnIndex(PlaceContract.PlaceEntry.COLUMN_PLACE_NAME));
-            final String placeAddress = data.getString(data.getColumnIndex(PlaceContract.PlaceEntry.COLUMN_PLACE_ADDRESS));
-            // TODO: call getPlaceById only once by passing in all the IDs and then compare with local data
-            PendingResult<PlaceBuffer> placeResult = Places.GeoDataApi
-                    .getPlaceById(mGoogleApiClient, placeUID);
-            placeResult.setResultCallback(new ResultCallback<PlaceBuffer>() {
-                @Override
-                public void onResult(@NonNull PlaceBuffer places) {
-                    // Check if the place was found successfully
-                    if (!places.getStatus().isSuccess() || places.getCount() == 0) {
-                        return;
-                    }
-
-                    // Get the Place object from the buffer.
-                    final Place place = places.get(0);
-
-                    // Check is there is any discrepancy between cached data and live data
-                    if (!place.getName().toString().equals(placeName) ||
-                            !place.getAddress().toString().equals(placeAddress)) {
-
-                        // Extract the place information from the API
-                        String newPlaceName = place.getName().toString();
-                        String newPlaceAddress = place.getAddress().toString();
-                        double newPlaceLat = place.getLatLng().latitude;
-                        double newPlaceLng = place.getLatLng().longitude;
-
-                        // Update the place with new data into DB
-                        ContentValues contentValues = new ContentValues();
-                        contentValues.put(PlaceContract.PlaceEntry.COLUMN_PLACE_NAME, newPlaceName);
-                        contentValues.put(PlaceContract.PlaceEntry.COLUMN_PLACE_ADDRESS, newPlaceAddress);
-                        contentValues.put(PlaceContract.PlaceEntry.COLUMN_PLACE_UID, placeUID);
-                        contentValues.put(PlaceContract.PlaceEntry.COLUMN_PLACE_LATITUDE, (float) newPlaceLat);
-                        contentValues.put(PlaceContract.PlaceEntry.COLUMN_PLACE_LONGITUDE, (float) newPlaceLng);
-                        String stringId = Long.toString(placeId);
-                        Uri uri = PlaceContract.PlaceEntry.CONTENT_URI;
-                        uri = uri.buildUpon().appendPath(stringId).build();
-                        mContext.getContentResolver().update(uri, contentValues, null, null);
-                    }
-                }
-            });
-        }
-
-    }
-
     /***
      * Creates a GeofencingRequest object using the mGeofenceList ArrayList of Geofences
      * Used by {@code #registerGeofences}

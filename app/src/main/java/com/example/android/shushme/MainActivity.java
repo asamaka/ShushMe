@@ -67,6 +67,7 @@ public class MainActivity extends AppCompatActivity implements
     private boolean mIsEnabled;
     private Geofencing mGeofencing;
     private boolean mNeverSynced;
+    private GeoDataLiveSync mGeoDataLiveSync;
 
     /**
      * Called when the activity is starting
@@ -77,9 +78,6 @@ public class MainActivity extends AppCompatActivity implements
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-
-        // Boolean to synchronize cached data with live places only once
-        mNeverSynced = true;
 
         // Set up the recycler view
         mRecyclerView = (RecyclerView) findViewById(R.id.places_list_recycler_view);
@@ -117,6 +115,10 @@ public class MainActivity extends AppCompatActivity implements
                 .build();
 
         mGeofencing = new Geofencing(this, client);
+
+        // Boolean to synchronize cached data with live places only once
+        mNeverSynced = true;
+        mGeoDataLiveSync = new GeoDataLiveSync(this, client);
 
         // Initialize the loader to load the list from the database
         getSupportLoaderManager().initLoader(PLACE_LOADER_ID, null, this);
@@ -220,7 +222,7 @@ public class MainActivity extends AppCompatActivity implements
         // Only do this once
         if (mNeverSynced) {
             mNeverSynced = false;
-            mGeofencing.syncPlacesData(data);
+            mGeoDataLiveSync.syncData(data);
         }
         mAdapter.swapCursor(data);
         mGeofencing.updateGeofencesList(data);
