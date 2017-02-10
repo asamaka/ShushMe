@@ -147,7 +147,7 @@ public class PlaceContentProvider extends ContentProvider {
      * @param uri
      * @param selection
      * @param selectionArgs
-     * @return
+     * @return number of rows affected
      */
     @Override
     public int delete(@NonNull Uri uri, String selection, String[] selectionArgs) {
@@ -176,7 +176,14 @@ public class PlaceContentProvider extends ContentProvider {
         return placesDeleted;
     }
 
-
+    /***
+     * Updates a single row of data
+     *
+     * @param uri
+     * @param selection
+     * @param selectionArgs
+     * @return number of rows affected
+     */
     @Override
     public int update(@NonNull Uri uri, ContentValues values, String selection,
                       String[] selectionArgs) {

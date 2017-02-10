@@ -20,6 +20,7 @@ import android.content.ContentValues;
 import android.content.Context;
 import android.database.Cursor;
 import android.net.Uri;
+import android.os.AsyncTask;
 import android.support.annotation.NonNull;
 import android.util.Log;
 
@@ -32,118 +33,108 @@ import com.google.android.gms.location.places.Place;
 import com.google.android.gms.location.places.PlaceBuffer;
 import com.google.android.gms.location.places.Places;
 
-import java.util.HashMap;
+import java.util.ArrayList;
+import java.util.List;
 
-public class GeoDataLiveSync implements ResultCallback<PlaceBuffer> {
+public class GeoDataLiveSync {
 
     private static final String TAG = GeoDataApi.class.getSimpleName();
-    private HashMap<String, CachedPlace> mCachedPlaces;
-    private Context mContext;
-    private GoogleApiClient mGoogleApiClient;
+    private final Context mContext;
+    private final GoogleApiClient mClient;
+    private boolean mNeverSynced;
 
-    /**
-     * Constructs a GeoDataLiveSync object that will allow local cached data to be synced with live data
-     *
-     * @param context The context for data provider access to the locally cached places
-     * @param client  A GoogleApiClient with GEO_DATA_API enabled
-     */
     public GeoDataLiveSync(Context context, GoogleApiClient client) {
-        mCachedPlaces = new HashMap<>();
         mContext = context;
-        mGoogleApiClient = client;
-    }
-
-    /**
-     * Synchronizes the locally cached places data by calling getPlaceById and updating any out of
-     * date information
-     *
-     * @param data A Cursor with the locally cached data
-     */
-    public void syncData(Cursor data) {
-        buildDictionary(data);
-        getLivePlaces();
-    }
-
-    /**
-     * Build a HashMap to speed up the lookup process when comparing live data with local data
-     *
-     * @param data A Cursor with the locally cached data
-     */
-    private void buildDictionary(Cursor data) {
-        if (data == null || data.getCount() == 0) return;
-        while (data.moveToNext()) {
-            long placeId = data.getLong(data.getColumnIndex(PlaceContract.PlaceEntry._ID));
-            String placeUID = data.getString(data.getColumnIndex(PlaceContract.PlaceEntry.COLUMN_PLACE_UID));
-            String placeName = data.getString(data.getColumnIndex(PlaceContract.PlaceEntry.COLUMN_PLACE_NAME));
-            String placeAddress = data.getString(data.getColumnIndex(PlaceContract.PlaceEntry.COLUMN_PLACE_ADDRESS));
-
-            CachedPlace place = new CachedPlace();
-            place.cachedId = placeId;
-            place.apiId = placeUID;
-            place.name = placeName;
-            place.address = placeAddress;
-
-            mCachedPlaces.put(placeUID, place);
-        }
+        mClient = client;
+        mNeverSynced = true;
     }
 
     /**
      * Calls the API's getPlaceById to request live data for all Places stored locally
      * Triggers onResult when complete
      */
-    private void getLivePlaces() {
-        if(mCachedPlaces.size()>0) {
-            PendingResult<PlaceBuffer> placeResult = Places.GeoDataApi.getPlaceById(mGoogleApiClient,
-                    mCachedPlaces.keySet().toArray(new String[mCachedPlaces.size()]));
-            placeResult.setResultCallback(this);
+    public void syncWithLivePlaces() {
+        if (!mNeverSynced) return;
+        mNeverSynced = false;
+        Uri uri = PlaceContract.PlaceEntry.CONTENT_URI;
+        Cursor data = mContext.getContentResolver().query(
+                uri,
+                null,
+                null,
+                null,
+                null);
+        if (data == null || data.getCount() == 0) return;
+        List<String> guids = new ArrayList<String>();
+        while (data.moveToNext()) {
+            guids.add(data.getString(data.getColumnIndex(PlaceContract.PlaceEntry.COLUMN_PLACE_UID)));
         }
+        PendingResult<PlaceBuffer> placeResult = Places.GeoDataApi.getPlaceById(mClient,
+                guids.toArray(new String[guids.size()]));
+        placeResult.setResultCallback(new ResultCallback<PlaceBuffer>() {
+            @Override
+            public void onResult(@NonNull PlaceBuffer places) {
+                new AsyncTask() {
+                    @Override
+                    protected Object doInBackground(Object[] objects) {
+                        checkAndUpdatePlaces((PlaceBuffer) objects[0]);
+                        return null;
+                    }
+                }.execute(places);
+            }
+        });
     }
 
     /**
-     * Called when getPlaceById API request has returned with a buffer of places
-     * @param places The resulted list of live Places returned from the API request
+     * Goes through the places buffer and compares each place with the local cacced information
+     * If anything is out of date, it gets updated in the local database
+     * @param places The up-to-date Places Buffer
      */
-    @Override
-    public void onResult(@NonNull PlaceBuffer places) {
+    private void checkAndUpdatePlaces(PlaceBuffer places) {
         for (Place place : places) {
             try {
-                CachedPlace cachedPlace = mCachedPlaces.get(place.getId());
-                // Check if there is any discrepancy between cached data and live data
-                if (!place.getName().toString().equals(cachedPlace.name) ||
-                        !place.getAddress().toString().equals(cachedPlace.address)) {
-                    updateCachedPlace(cachedPlace, place);
+                Uri uri = PlaceContract.PlaceEntry.CONTENT_URI;
+                Cursor res = mContext.getContentResolver().query(
+                        uri,
+                        null,
+                        PlaceContract.PlaceEntry.COLUMN_PLACE_UID + " = ?",
+                        new String[]{place.getId()},
+                        null);
+                if (res.getCount() > 0) {
+                    res.moveToFirst();
+                    // Check if there is any discrepancy between cached data and live data
+                    if (!place.getName().toString().equals(
+                            res.getString(res.getColumnIndex(PlaceContract.PlaceEntry.COLUMN_PLACE_NAME))) ||
+                            !place.getAddress().toString().equals(
+                                    res.getString(res.getColumnIndex(PlaceContract.PlaceEntry.COLUMN_PLACE_ADDRESS)))) {
+                        updatePlace(res.getLong(res.getColumnIndex(PlaceContract.PlaceEntry._ID)), place);
+                    }
                 }
             } catch (Exception ex) {
-                Log.e(TAG, ex.getMessage());
+                Log.e(TAG, "onResult :" + ex.getMessage());
             }
         }
     }
 
     /**
      * Updates the name and address of the cachedPlace with the up-to-date information in livePlace
-     * @param cachedPlace The locally cached place information
-     * @param livePlace The live up-to-date Place information
+     *
+     * @param dbId      The locally cached place database ID
+     * @param newPlace The live up-to-date Place information
      * @return number of rows updated in the database
      */
-    private int updateCachedPlace(CachedPlace cachedPlace, Place livePlace) {
+    private int updatePlace(long dbId, Place newPlace) {
         // Extract the place information from the API
-        String newPlaceName = livePlace.getName().toString();
-        String newPlaceAddress = livePlace.getAddress().toString();
+        String newPlaceName = newPlace.getName().toString();
+        String newPlaceAddress = newPlace.getAddress().toString();
 
         // Update the place with new data into DB
         ContentValues contentValues = new ContentValues();
         contentValues.put(PlaceContract.PlaceEntry.COLUMN_PLACE_NAME, newPlaceName);
         contentValues.put(PlaceContract.PlaceEntry.COLUMN_PLACE_ADDRESS, newPlaceAddress);
-        String stringId = Long.toString(cachedPlace.cachedId);
+        String stringId = Long.toString(dbId);
         Uri uri = PlaceContract.PlaceEntry.CONTENT_URI;
         uri = uri.buildUpon().appendPath(stringId).build();
         return mContext.getContentResolver().update(uri, contentValues, null, null);
     }
 
-    class CachedPlace {
-        public long cachedId;
-        public String apiId;
-        public String name;
-        public String address;
-    }
 }

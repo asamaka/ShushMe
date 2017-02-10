@@ -22,6 +22,7 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
+import android.os.AsyncTask;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
@@ -67,7 +68,6 @@ public class MainActivity extends AppCompatActivity implements
     private TextView mNoDataMessage;
     private boolean mIsEnabled;
     private Geofencing mGeofencing;
-    private boolean mNeverSynced;
     private GeoDataLiveSync mGeoDataLiveSync;
 
     /**
@@ -116,10 +116,7 @@ public class MainActivity extends AppCompatActivity implements
                 .build();
 
         mGeofencing = new Geofencing(this, client);
-
-        // Boolean to synchronize cached data with live places only once
-        mNeverSynced = true;
-        mGeoDataLiveSync = new GeoDataLiveSync(this, client);
+        mGeoDataLiveSync = new GeoDataLiveSync(this,client);
 
         // Initialize the loader to load the list from the database
         getSupportLoaderManager().initLoader(PLACE_LOADER_ID, null, this);
@@ -133,7 +130,9 @@ public class MainActivity extends AppCompatActivity implements
      */
     @Override
     public void onConnected(@Nullable Bundle connectionHint) {
+        Log.i(TAG, "API Client Connection Successful!");
         if (mIsEnabled) mGeofencing.registerAllGeofences();
+        mGeoDataLiveSync.syncWithLivePlaces();
     }
 
     /***
@@ -181,11 +180,6 @@ public class MainActivity extends AppCompatActivity implements
      */
     @Override
     public void onLoadFinished(Loader<Cursor> loader, Cursor data) {
-        // Only do this once
-        if (mNeverSynced) {
-            mNeverSynced = false;
-            mGeoDataLiveSync.syncData(data);
-        }
         mAdapter.swapCursor(data);
         mGeofencing.updateGeofencesList(data);
         if (mIsEnabled) mGeofencing.registerAllGeofences();
@@ -224,6 +218,7 @@ public class MainActivity extends AppCompatActivity implements
         }
     }
 
+
     /***
      * Called when the Place Picker Activity returns back with a selected place (or after canceling)
      *
@@ -258,7 +253,7 @@ public class MainActivity extends AppCompatActivity implements
     }
 
     @Override
-    public void onResume(){
+    public void onResume() {
         super.onResume();
 
         // Initialize location permissions checkbox
@@ -292,6 +287,5 @@ public class MainActivity extends AppCompatActivity implements
         ActivityCompat.requestPermissions(MainActivity.this,
                 new String[]{android.Manifest.permission.ACCESS_FINE_LOCATION},
                 PERMISSIONS_REQUEST_FINE_LOCATION);
-
     }
 }
